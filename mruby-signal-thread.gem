@@ -1,0 +1,6 @@
+name: mruby-signal-thread
+description: SignalThread class
+author: pyama86
+website: https://github.com/pyama86/mruby-signal-thread
+protocol: git
+repository: https://github.com/pyama86/mruby-signal-thread.git
