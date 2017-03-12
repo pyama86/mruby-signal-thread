@@ -1,9 +1,12 @@
-SignalThread.trap(:HUP, "hup") do |h|
-  p h
+a = "a"
+b = "b"
+
+SignalThread.trap(:HUP) do
+  puts a
 end
 
-SignalThread.trap(:USR1, "user1") do |h|
-  p h
+SignalThread.trap(:USR1) do
+  puts b
 end
 
 puts "wait..."

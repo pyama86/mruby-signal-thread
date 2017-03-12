@@ -245,6 +245,9 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   mrb_value command, block;
 
   mrb_get_args(mrb, "*&", &argv, &argc, &block);
+  if (argc != 1)
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)",
+               mrb_fixnum_value(argc));
 
   if (!mrb_nil_p(block) && MRB_PROC_CFUNC_P(mrb_proc_ptr(block))) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "require defined block");

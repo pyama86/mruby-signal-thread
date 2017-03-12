@@ -1,9 +1,9 @@
 class SignalThread
-  def self.trap(sig, *arg, &block)
+  def self.trap(sig, &block)
     mask(sig)
     pr = Proc.new do
       wait(sig) do
-        block.call(arg)
+        block.call
       end
     end
 

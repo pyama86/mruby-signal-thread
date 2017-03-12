@@ -13,8 +13,8 @@ end
 ```
 ## example
 ```ruby
-SignalThread.trap(:HUP, "hoge", "fuga") do |h,f|
-  p h,f
+SignalThread.trap(:HUP) do
+  puts "foo"
 end
 
 puts "wait..."
@@ -25,8 +25,7 @@ loop { sleep 1 }
 $ mruby/bin/mruby example/signal_thread.rb &
 wait...
 $ kill -HUP $(pidof mruby)
-hoge
-fuga
+foo
 ```
 
 ## License
