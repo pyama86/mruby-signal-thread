@@ -241,7 +241,7 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   int sig, s;
   mrb_value *argv;
   mrb_int argc;
-  sigset_t set;
+  sigset_t set, mask;
   mrb_value command, block;
 
   mrb_get_args(mrb, "*&", &argv, &argc, &block);
@@ -252,11 +252,17 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
 
   sig = trap_signm(mrb, argv[0]);
 
+  sigfillset(&mask);
+  sigdelset(&mask, sig);
+  if (pthread_sigmask(SIG_BLOCK, &mask, NULL) != 0) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "set mask error");
+  }
+
   sigemptyset(&set);
   sigaddset(&set, sig);
 
   for (;;) {
-    s = sigwait(&set, &sig);
+    sigwait(&set, &sig);
     mrb_yield_argv(mrb, block, 0, NULL);
   }
 }
