@@ -13,13 +13,20 @@ end
 ```
 ## example
 ```ruby
-p SignalThread.hi
-#=> "hi!!"
-t = SignalThread.new "hello"
-p t.hello
-#=> "hello"
-p t.bye
-#=> "hello bye"
+SignalThread.trap(:HUP, "hoge", "fuga") do |h,f|
+  p h,f
+end
+
+puts "wait..."
+loop { sleep 1 }
+```
+
+```bash
+$ mruby/bin/mruby example/signal_thread.rb &
+wait...
+$ kill -HUP $(pidof mruby)
+hoge
+fuga
 ```
 
 ## License
