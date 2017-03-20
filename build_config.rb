@@ -6,5 +6,6 @@ MRuby::Build.new do |conf|
   conf.gem mgem: 'mruby-thread'
   conf.linker.libraries << ['pthread']
   conf.gem File.expand_path(File.dirname(__FILE__))
+  conf.cc.flags << "-DMRB_THREAD_COPY_VALUES"
   conf.enable_test
 end
