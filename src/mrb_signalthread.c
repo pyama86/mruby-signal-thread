@@ -26,6 +26,8 @@ static const struct signals {
   const char *signm;
   int signo;
 } siglist[] = {{"EXIT", 0},
+
+
 #ifdef SIGHUP
                {"HUP", SIGHUP},
 #endif
