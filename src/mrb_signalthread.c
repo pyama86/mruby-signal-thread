@@ -197,6 +197,12 @@ static int signm2signo(const char *nm)
   return 0;
 }
 
+#ifdef SIGRTMAX
+#define MRB_SIGNAL_LIMIT_NO SIGRTMAX + 1
+#else
+#define MRB_SIGNAL_LIMIT_NO NSIG
+#end
+
 static int trap_signm(mrb_state *mrb, mrb_value vsig)
 {
   int sig = -1;
@@ -205,7 +211,7 @@ static int trap_signm(mrb_state *mrb, mrb_value vsig)
   switch (mrb_type(vsig)) {
   case MRB_TT_FIXNUM:
     sig = mrb_fixnum(vsig);
-    if (sig < 0 || sig >= NSIG) {
+    if (sig < 0 || sig >= MRB_SIGNAL_LIMIT_NO) {
       mrb_raisef(mrb, E_ARGUMENT_ERROR, "invalid signal number (%S)", vsig);
     }
     break;
