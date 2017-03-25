@@ -15,9 +15,12 @@
 #include <mruby/string.h>
 #include <mruby/value.h>
 #include <mruby/variable.h>
+
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -178,6 +181,19 @@ static int signm2signo(const char *nm)
     if (strcmp(sigs->signm, nm) == 0)
       return sigs->signo;
   }
+
+#ifdef SIGRTMIN
+  /* Handle RT Signal#0 as special for strtol's err spec */
+  if (strcmp("RT0", nm) == 0)
+    return SIGRTMIN;
+
+  if (strncmp("RT", nm, 2) == 0) {
+    int ret = (int)strtol(nm + 2, NULL, 0);
+    if (!ret || (SIGRTMIN + ret > SIGRTMAX))
+      return 0;
+    return SIGRTMIN + ret;
+  }
+#endif
   return 0;
 }
 
@@ -222,8 +238,7 @@ static mrb_value mrb_signal_thread_mask(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "*", &argv, &argc);
   if (argc != 1)
-    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)",
-               mrb_fixnum_value(argc));
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)", mrb_fixnum_value(argc));
 
   sig = trap_signm(mrb, argv[0]);
 
@@ -246,8 +261,7 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "*&", &argv, &argc, &block);
   if (argc != 1)
-    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)",
-               mrb_fixnum_value(argc));
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)", mrb_fixnum_value(argc));
 
   if (!mrb_nil_p(block) && MRB_PROC_CFUNC_P(mrb_proc_ptr(block))) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "require defined block");
