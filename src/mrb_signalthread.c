@@ -201,7 +201,7 @@ static int signm2signo(const char *nm)
 #define MRB_SIGNAL_LIMIT_NO SIGRTMAX + 1
 #else
 #define MRB_SIGNAL_LIMIT_NO NSIG
-#end
+#endif
 
 static int trap_signm(mrb_state *mrb, mrb_value vsig)
 {
@@ -290,6 +290,23 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   }
 }
 
+static mrb_value mrb_signal_thread_queue(mrb_state *mrb, mrb_value self)
+{
+  int sig;
+  mrb_int pid;
+  mrb_value sigobj;
+  union sigval sv;
+  sv.sival_int = 0; /* Dummy */
+
+  mrb_get_args(mrb, "io", &pid, &sigobj);
+
+  sig = trap_signm(mrb, sigobj);
+  if (sigqueue((pid_t)pid, sig, sv) == -1)
+    mrb_raise(mrb, E_RUNTIME_ERROR, "sigqueue failed");
+
+  return mrb_fixnum_value(sig);
+}
+
 void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 {
   struct RClass *signalthread;
@@ -297,6 +314,8 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 
   mrb_define_class_method(mrb, signalthread, "mask", mrb_signal_thread_mask, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "wait", mrb_signal_thread_wait, MRB_ARGS_REQ(1));
+
+  mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
 }
 
 void mrb_mruby_signal_thread_gem_final(mrb_state *mrb)
