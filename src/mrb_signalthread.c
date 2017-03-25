@@ -290,6 +290,14 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   }
 }
 
+#ifdef __APPLE__
+static int sigqueue(pid_t pid, int sig, const union sigval value)
+{
+  (void)value;
+  return kill(pid, sig);
+}
+#endif
+
 static mrb_value mrb_signal_thread_queue(mrb_state *mrb, mrb_value self)
 {
   int sig;
