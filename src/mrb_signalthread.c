@@ -15,9 +15,12 @@
 #include <mruby/string.h>
 #include <mruby/value.h>
 #include <mruby/variable.h>
+
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -189,8 +192,27 @@ static int signm2signo(const char *nm)
     if (strcmp(sigs->signm, nm) == 0)
       return sigs->signo;
   }
+
+#ifdef SIGRTMIN
+  /* Handle RT Signal#0 as special for strtol's err spec */
+  if (strcmp("RT0", nm) == 0)
+    return SIGRTMIN;
+
+  if (strncmp("RT", nm, 2) == 0) {
+    int ret = (int)strtol(nm + 2, NULL, 0);
+    if (!ret || (SIGRTMIN + ret > SIGRTMAX))
+      return 0;
+    return SIGRTMIN + ret;
+  }
+#endif
   return 0;
 }
+
+#ifdef SIGRTMAX
+#define MRB_SIGNAL_LIMIT_NO SIGRTMAX + 1
+#else
+#define MRB_SIGNAL_LIMIT_NO NSIG
+#endif
 
 static int trap_signm(mrb_state *mrb, mrb_value vsig)
 {
@@ -200,7 +222,7 @@ static int trap_signm(mrb_state *mrb, mrb_value vsig)
   switch (mrb_type(vsig)) {
   case MRB_TT_FIXNUM:
     sig = mrb_fixnum(vsig);
-    if (sig < 0 || sig >= NSIG) {
+    if (sig < 0 || sig >= MRB_SIGNAL_LIMIT_NO) {
       mrb_raisef(mrb, E_ARGUMENT_ERROR, "invalid signal number (%S)", vsig);
     }
     break;
@@ -233,8 +255,7 @@ static mrb_value mrb_signal_thread_mask(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "*", &argv, &argc);
   if (argc != 1)
-    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)",
-               mrb_fixnum_value(argc));
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)", mrb_fixnum_value(argc));
 
   sig = trap_signm(mrb, argv[0]);
 
@@ -257,8 +278,7 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "*&", &argv, &argc, &block);
   if (argc != 1)
-    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)",
-               mrb_fixnum_value(argc));
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)", mrb_fixnum_value(argc));
 
   if (!mrb_nil_p(block) && MRB_PROC_CFUNC_P(mrb_proc_ptr(block))) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "require defined block");
@@ -312,6 +332,31 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   return context->result;
 }
 
+#ifdef __APPLE__
+static int sigqueue(pid_t pid, int sig, const union sigval value)
+{
+  (void)value;
+  return kill(pid, sig);
+}
+#endif
+
+static mrb_value mrb_signal_thread_queue(mrb_state *mrb, mrb_value self)
+{
+  int sig;
+  mrb_int pid;
+  mrb_value sigobj;
+  union sigval sv;
+  sv.sival_int = 0; /* Dummy */
+
+  mrb_get_args(mrb, "io", &pid, &sigobj);
+
+  sig = trap_signm(mrb, sigobj);
+  if (sigqueue((pid_t)pid, sig, sv) == -1)
+    mrb_raise(mrb, E_RUNTIME_ERROR, "sigqueue failed");
+
+  return mrb_fixnum_value(sig);
+}
+
 void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 {
   struct RClass* _class_thread = mrb_class_get(mrb, "Thread");
@@ -321,6 +366,8 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
   mrb_define_class_method(mrb, signalthread, "mask", mrb_signal_thread_mask, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "wait", mrb_signal_thread_wait, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, signalthread, "_kill", mrb_signal_thread_kill, MRB_ARGS_REQ(1));
+
+  mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
 }
 
 void mrb_mruby_signal_thread_gem_final(mrb_state *mrb)
