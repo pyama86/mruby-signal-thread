@@ -21,6 +21,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct {
+  int argc;
+  mrb_value* argv;
+  struct RProc* proc;
+  pthread_t thread;
+  mrb_state* mrb_caller;
+  mrb_state* mrb;
+  mrb_value result;
+  mrb_bool alive;
+} mrb_thread_context;
+
 // thanks: https://github.com/ksss/mruby-signal/blob/master/src/signal.c
 static const struct signals {
   const char *signm;
@@ -270,13 +281,46 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   }
 }
 
+static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
+{
+  int sig;
+  mrb_value *argv;
+  mrb_int argc;
+
+  mrb_get_args(mrb, "*", &argv, &argc);
+  if (argc != 1)
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)",
+               mrb_fixnum_value(argc));
+
+  sig = trap_signm(mrb, argv[0]);
+
+  struct RClass* _class_thread = mrb_class_get(mrb, "Thread");
+
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
+  mrb_thread_context* context = NULL;
+
+  if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
+      mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
+        mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
+  }
+
+  context = DATA_PTR(value_context);
+  if (context->mrb == NULL) {
+    return mrb_nil_value();
+  }
+  pthread_kill(context->thread, sig);
+  return context->result;
+}
+
 void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 {
+  struct RClass* _class_thread = mrb_class_get(mrb, "Thread");
   struct RClass *signalthread;
-  signalthread = mrb_define_class(mrb, "SignalThread", mrb->object_class);
+  signalthread = mrb_define_class(mrb, "SignalThread", _class_thread);
 
   mrb_define_class_method(mrb, signalthread, "mask", mrb_signal_thread_mask, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "wait", mrb_signal_thread_wait, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, signalthread, "_kill", mrb_signal_thread_kill, MRB_ARGS_REQ(1));
 }
 
 void mrb_mruby_signal_thread_gem_final(mrb_state *mrb)

@@ -16,3 +16,15 @@ assert('SignalThread#trap') do
   sleep 1
   a == 3
 end
+
+assert('SignalThread#kill') do
+  a = 1
+  th = SignalThread.trap(:HUP) do
+    a = 2
+  end
+
+  th.alive?
+  th.kill :HUP
+  sleep 1
+  a == 2
+end
