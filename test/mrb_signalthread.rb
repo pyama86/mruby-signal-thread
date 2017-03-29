@@ -30,3 +30,15 @@ assert('SignalThread#trap with RTSignal') do
     assert_equal "unsupported signal", e.message
   end
 end
+
+assert('SignalThread#kill') do
+  a = 1
+  th = SignalThread.trap(:HUP) do
+    a = 2
+  end
+
+  th.alive?
+  th.kill :HUP
+  sleep 1
+  a == 2
+end

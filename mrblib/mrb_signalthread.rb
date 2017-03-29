@@ -1,4 +1,4 @@
-class SignalThread
+class SignalThread < Thread
   def self.trap(sig, &block)
     strsig = sig.to_s
     mask(strsig)
@@ -8,8 +8,12 @@ class SignalThread
       end
     end
 
-    Thread.new(pr) do |pr|
+    self.new(pr) do |pr|
       pr.call
     end
+  end
+
+  def kill(sig)
+    _kill(sig.to_s)
   end
 end
