@@ -317,6 +317,10 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   struct RClass* _class_thread = mrb_class_get(mrb, "Thread");
 
   mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
+  if (mrb_nil_p(value_context)) {
+      mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
+  }
+
   mrb_thread_context* context = NULL;
 
   if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
