@@ -336,6 +336,41 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   return context->result;
 }
 
+static mrb_value mrb_signal_thread_tid(mrb_state *mrb, mrb_value self)
+{
+  mrb_thread_context* context = NULL;
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
+
+  if (mrb_nil_p(value_context)) {
+      mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
+  }
+
+  if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
+      mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
+        mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
+  }
+
+  context = DATA_PTR(value_context);
+  if (context->mrb == NULL) {
+    return mrb_nil_value();
+  }
+
+  return mrb_float_value(mrb, (mrb_float)context->thread);
+}
+
+static mrb_value mrb_signal_thread_kill_by_tid(mrb_state *mrb, mrb_value self)
+{
+  mrb_int sig;
+  mrb_float tid;
+  mrb_value sig_obj;
+
+  mrb_get_args(mrb, "fo", &tid, &sig_obj);
+
+  sig = trap_signm(mrb, sig_obj);
+
+  return mrb_fixnum_value(pthread_kill((pthread_t)tid, sig));
+}
+
 #ifdef __APPLE__
 static int sigqueue(pid_t pid, int sig, const union sigval value)
 {
@@ -369,7 +404,10 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 
   mrb_define_class_method(mrb, signalthread, "mask", mrb_signal_thread_mask, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "wait", mrb_signal_thread_wait, MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, signalthread, "kill_by_tid", mrb_signal_thread_kill_by_tid, MRB_ARGS_REQ(2));
+
   mrb_define_method(mrb, signalthread, "_kill", mrb_signal_thread_kill, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, signalthread, "tid", mrb_signal_thread_tid, MRB_ARGS_NONE());
 
   mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
 }
