@@ -173,17 +173,6 @@ static const struct signals {
 #endif
                {NULL, 0}};
 
-static const char *signo2signm(mrb_int no)
-{
-  const struct signals *sigs;
-
-  for (sigs = siglist; sigs->signm; sigs++) {
-    if (sigs->signo == no)
-      return sigs->signm;
-  }
-  return 0;
-}
-
 static int signm2signo(const char *nm)
 {
   const struct signals *sigs;
@@ -270,11 +259,11 @@ static mrb_value mrb_signal_thread_mask(mrb_state *mrb, mrb_value self)
 
 static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
 {
-  int sig, s;
+  int sig;
   mrb_value *argv;
   mrb_int argc;
   sigset_t set, mask;
-  mrb_value command, block;
+  mrb_value block;
 
   mrb_get_args(mrb, "*&", &argv, &argc, &block);
   if (argc != 1)
@@ -306,6 +295,8 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   int sig;
   mrb_value *argv;
   mrb_int argc;
+  mrb_value value_context;
+  mrb_thread_context* context = NULL;
 
   mrb_get_args(mrb, "*", &argv, &argc);
   if (argc != 1)
@@ -314,14 +305,10 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
 
   sig = trap_signm(mrb, argv[0]);
 
-  struct RClass* _class_thread = mrb_class_get(mrb, "Thread");
-
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
+  value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
   if (mrb_nil_p(value_context)) {
       mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
   }
-
-  mrb_thread_context* context = NULL;
 
   if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
       mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
