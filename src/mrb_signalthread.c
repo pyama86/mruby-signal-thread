@@ -191,6 +191,7 @@ static int signm2signo(const char *nm)
     int ret = (int)strtol(nm + 2, NULL, 0);
     if (!ret || (SIGRTMIN + ret > SIGRTMAX))
       return 0;
+
     return SIGRTMIN + ret;
   }
 #endif
@@ -211,9 +212,8 @@ static int trap_signm(mrb_state *mrb, mrb_value vsig)
   switch (mrb_type(vsig)) {
   case MRB_TT_FIXNUM:
     sig = mrb_fixnum(vsig);
-    if (sig < 0 || sig >= MRB_SIGNAL_LIMIT_NO) {
+    if (sig < 0 || sig >= MRB_SIGNAL_LIMIT_NO)
       mrb_raisef(mrb, E_ARGUMENT_ERROR, "invalid signal number (%S)", vsig);
-    }
     break;
   case MRB_TT_SYMBOL:
     s = mrb_sym2name(mrb, mrb_symbol(vsig));
@@ -251,9 +251,9 @@ static mrb_value mrb_signal_thread_mask(mrb_state *mrb, mrb_value self)
   sigemptyset(&set);
   sigaddset(&set, sig);
 
-  if (pthread_sigmask(SIG_BLOCK, &set, NULL) != 0) {
+  if (pthread_sigmask(SIG_BLOCK, &set, NULL) != 0)
     mrb_raise(mrb, E_RUNTIME_ERROR, "set mask error");
-  }
+
   return self;
 }
 
@@ -269,17 +269,15 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   if (argc != 1)
     mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)", mrb_fixnum_value(argc));
 
-  if (!mrb_nil_p(block) && MRB_PROC_CFUNC_P(mrb_proc_ptr(block))) {
+  if (!mrb_nil_p(block) && MRB_PROC_CFUNC_P(mrb_proc_ptr(block)))
     mrb_raise(mrb, E_RUNTIME_ERROR, "require defined block");
-  }
 
   sig = trap_signm(mrb, argv[0]);
 
   sigfillset(&mask);
   sigdelset(&mask, sig);
-  if (pthread_sigmask(SIG_BLOCK, &mask, NULL) != 0) {
+  if (pthread_sigmask(SIG_BLOCK, &mask, NULL) != 0)
     mrb_raise(mrb, E_RUNTIME_ERROR, "set mask error");
-  }
 
   sigemptyset(&set);
   sigaddset(&set, sig);
@@ -305,9 +303,8 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   sig = trap_signm(mrb, argv[0]);
 
   value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
-  if (mrb_nil_p(value_context)) {
+  if (mrb_nil_p(value_context))
     mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
-  }
 
   if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
     mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
@@ -315,9 +312,9 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   }
 
   context = DATA_PTR(value_context);
-  if (context->mrb == NULL) {
+  if (context->mrb == NULL)
     return mrb_nil_value();
-  }
+
   pthread_kill(context->thread, sig);
   return context->result;
 }
