@@ -26,11 +26,11 @@
 
 typedef struct {
   int argc;
-  mrb_value* argv;
-  struct RProc* proc;
+  mrb_value *argv;
+  struct RProc *proc;
   pthread_t thread;
-  mrb_state* mrb_caller;
-  mrb_state* mrb;
+  mrb_state *mrb_caller;
+  mrb_state *mrb;
   mrb_value result;
   mrb_bool alive;
 } mrb_thread_context;
@@ -296,23 +296,22 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   mrb_value *argv;
   mrb_int argc;
   mrb_value value_context;
-  mrb_thread_context* context = NULL;
+  mrb_thread_context *context = NULL;
 
   mrb_get_args(mrb, "*", &argv, &argc);
   if (argc != 1)
-    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)",
-               mrb_fixnum_value(argc));
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1 for %S)", mrb_fixnum_value(argc));
 
   sig = trap_signm(mrb, argv[0]);
 
   value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
   if (mrb_nil_p(value_context)) {
-      mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
+    mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
   }
 
   if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
-      mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
-        mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
+    mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
+               mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
   }
 
   context = DATA_PTR(value_context);
@@ -350,7 +349,7 @@ static mrb_value mrb_signal_thread_queue(mrb_state *mrb, mrb_value self)
 
 void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 {
-  struct RClass* _class_thread = mrb_class_get(mrb, "Thread");
+  struct RClass *_class_thread = mrb_class_get(mrb, "Thread");
   struct RClass *signalthread;
   signalthread = mrb_define_class(mrb, "SignalThread", _class_thread);
 
