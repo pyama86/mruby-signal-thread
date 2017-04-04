@@ -31,13 +31,13 @@ assert('SignalThread#trap with RTSignal') do
   end
 end
 
-assert('SignalThread#tid') do
+assert('SignalThread#thread_id') do
   a = 1
   th = SignalThread.trap(:HUP) do
     a = 2
   end
 
-  SignalThread.kill_by_tid th.tid, :HUP
+  SignalThread.kill_by_thread_id th.thread_id, :HUP
   usleep 1000
   assert_true a == 2
 end

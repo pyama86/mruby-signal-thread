@@ -319,7 +319,7 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   return context->result;
 }
 
-static mrb_value mrb_signal_thread_tid(mrb_state *mrb, mrb_value self)
+static mrb_value mrb_signal_thread_thread_id(mrb_state *mrb, mrb_value self)
 {
   mrb_thread_context* context = NULL;
   mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
@@ -341,17 +341,17 @@ static mrb_value mrb_signal_thread_tid(mrb_state *mrb, mrb_value self)
   return mrb_float_value(mrb, (mrb_float)context->thread);
 }
 
-static mrb_value mrb_signal_thread_kill_by_tid(mrb_state *mrb, mrb_value self)
+static mrb_value mrb_signal_thread_kill_by_thread_id(mrb_state *mrb, mrb_value self)
 {
   mrb_int sig;
-  mrb_float tid;
+  mrb_float thread_id;
   mrb_value sig_obj;
 
-  mrb_get_args(mrb, "fo", &tid, &sig_obj);
+  mrb_get_args(mrb, "fo", &thread_id, &sig_obj);
 
   sig = trap_signm(mrb, sig_obj);
 
-  return mrb_fixnum_value(pthread_kill((pthread_t)tid, sig));
+  return mrb_fixnum_value(pthread_kill((pthread_t)thread_id, sig));
 }
 
 #ifdef __APPLE__
@@ -387,10 +387,10 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 
   mrb_define_class_method(mrb, signalthread, "mask", mrb_signal_thread_mask, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "wait", mrb_signal_thread_wait, MRB_ARGS_REQ(1));
-  mrb_define_class_method(mrb, signalthread, "kill_by_tid", mrb_signal_thread_kill_by_tid, MRB_ARGS_REQ(2));
+  mrb_define_class_method(mrb, signalthread, "kill_by_thread_id", mrb_signal_thread_kill_by_thread_id, MRB_ARGS_REQ(2));
 
   mrb_define_method(mrb, signalthread, "_kill", mrb_signal_thread_kill, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, signalthread, "tid", mrb_signal_thread_tid, MRB_ARGS_NONE());
+  mrb_define_method(mrb, signalthread, "thread_id", mrb_signal_thread_thread_id, MRB_ARGS_NONE());
 
   mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
 }
