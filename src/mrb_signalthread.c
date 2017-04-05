@@ -296,6 +296,44 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   }
 }
 
+static mrb_value mrb_signal_thread_waitinfo(mrb_state *mrb, mrb_value self)
+{
+  int sig, argc;
+  mrb_value signo, block = mrb_nil_value();
+  sigset_t set, mask;
+  siginfo_t siginfo;
+  memset(&siginfo, 0, sizeof(siginfo_t));
+
+  if ((argc = mrb_get_args(mrb, "o&", &signo, &block)) <= 0)
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1..2 for %S)", argc);
+
+  if (!mrb_nil_p(block) && MRB_PROC_CFUNC_P(mrb_proc_ptr(block)))
+    mrb_raise(mrb, E_RUNTIME_ERROR, "require block defined in ruby code");
+
+  sig = trap_signm(mrb, signo);
+
+  sigfillset(&mask);
+  sigdelset(&mask, sig);
+  if (pthread_sigmask(SIG_BLOCK, &mask, NULL) != 0)
+    mrb_raise(mrb, E_RUNTIME_ERROR, "set mask error");
+
+  sigemptyset(&set);
+  sigaddset(&set, sig);
+
+  if (mrb_nil_p(block)) {
+    /* just wait if no block given */
+    sigwaitinfo(&set, &siginfo);
+    return mrb_nil_value();
+  } else {
+    for (;;) {
+      sigwaitinfo(&set, &siginfo);
+      mrb_yield_argv(mrb, block, 0, NULL);
+    }
+    /* never return */
+    mrb_raise(mrb, E_RUNTIME_ERROR, "[BUG] Wait loop seems broken");
+  }
+}
+
 static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
 {
   int sig;
@@ -395,6 +433,7 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 
   mrb_define_class_method(mrb, signalthread, "mask", mrb_signal_thread_mask, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "wait", mrb_signal_thread_wait, MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, signalthread, "waitinfo", mrb_signal_thread_waitinfo, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "kill_by_thread_id", mrb_signal_thread_kill_by_thread_id, MRB_ARGS_REQ(2));
 
   mrb_define_method(mrb, signalthread, "_kill", mrb_signal_thread_kill, MRB_ARGS_REQ(1));
