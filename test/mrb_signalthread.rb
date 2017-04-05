@@ -20,15 +20,38 @@ end
 assert('SignalThread#trap with RTSignal') do
   begin
     a = 0
-    SignalThread.trap(:RT1) do
+    t = SignalThread.trap(:RT1) do
       a = 10
     end
-    SignalThread.queue Process.pid, :RT1
+    t.kill :RT1
     usleep 1000
     assert_true a == 10
   rescue ArgumentError => e
     assert_equal "unsupported signal", e.message
   end
+end
+
+assert('SignalThread#trap_once') do
+  a = 1
+  t = SignalThread.trap_once(:USR1) do
+    a = 4
+  end
+
+  t.kill :USR1
+  usleep 1000
+  assert_equal 4, a
+  assert_false t.alive?
+end
+
+assert('SignalThread#trap, detailed: true') do
+  name = nil
+  t = SignalThread.trap(:USR2, detailed: true) do |info|
+    name = info.class.to_s
+  end
+
+  t.kill :USR2
+  usleep 1000
+  assert_equal "SigInfo", name
 end
 
 assert('SignalThread#thread_id') do

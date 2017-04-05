@@ -24,6 +24,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define DONE mrb_gc_arena_restore(mrb, 0);
+
 typedef struct {
   int argc;
   mrb_value *argv;
@@ -263,7 +265,7 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   mrb_value *argv;
   mrb_int argc;
   sigset_t set, mask;
-  mrb_value block;
+  mrb_value block = mrb_nil_value();
 
   mrb_get_args(mrb, "*&", &argv, &argc, &block);
   if (argc != 1)
@@ -282,9 +284,93 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   sigemptyset(&set);
   sigaddset(&set, sig);
 
-  for (;;) {
+  if (mrb_nil_p(block)) {
+    /* just wait if no block given */
     sigwait(&set, &sig);
-    mrb_yield_argv(mrb, block, 0, NULL);
+    return mrb_nil_value();
+  } else {
+    for (;;) {
+      sigwait(&set, &sig);
+      mrb_yield_argv(mrb, block, 0, NULL);
+    }
+    /* never return */
+    mrb_raise(mrb, E_RUNTIME_ERROR, "[BUG] Wait loop seems broken");
+  }
+}
+
+/* SigInfo functions */
+
+#define MRB_DEFINE_SIGINFO_MEMBER(name, mrb_convert_fun, member)                                                       \
+  static mrb_value mrb_siginfo_get_##name(mrb_state *mrb, mrb_value self)                                              \
+  {                                                                                                                    \
+    siginfo_t *si = DATA_PTR(self);                                                                                    \
+    if (!si) {                                                                                                         \
+      mrb_raise(mrb, E_RUNTIME_ERROR, "[BUG]");                                                                        \
+    }                                                                                                                  \
+    return mrb_convert_fun(si->member);                                                                                \
+  }
+
+MRB_DEFINE_SIGINFO_MEMBER(pid, mrb_fixnum_value, si_pid);
+MRB_DEFINE_SIGINFO_MEMBER(uid, mrb_fixnum_value, si_uid);
+MRB_DEFINE_SIGINFO_MEMBER(syscall, mrb_fixnum_value, si_syscall);
+
+static void mrb_siginfo_register_data(mrb_state *mrb, mrb_value obj, siginfo_t *si)
+{
+  void *data = DATA_PTR(obj);
+  siginfo_t *si2 = mrb_malloc(mrb, sizeof(siginfo_t));
+  if (data || !si2) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "Register data failed");
+  }
+
+  memcpy(si2, si, sizeof(siginfo_t));
+  DATA_PTR(obj) = si2;
+}
+
+/* Return to SignalThread functions */
+
+static mrb_value mrb_signal_thread_waitinfo(mrb_state *mrb, mrb_value self)
+{
+  int sig, argc;
+  mrb_value signo, block = mrb_nil_value(), mrb_si;
+  mrb_value argv[1];
+  sigset_t set, mask;
+  siginfo_t siginfo;
+  memset(&siginfo, 0, sizeof(siginfo_t));
+
+  if ((argc = mrb_get_args(mrb, "o&", &signo, &block)) <= 0)
+    mrb_raisef(mrb, E_ARGUMENT_ERROR, "wrong number of arguments (1..2 for %S)", argc);
+
+  if (!mrb_nil_p(block) && MRB_PROC_CFUNC_P(mrb_proc_ptr(block)))
+    mrb_raise(mrb, E_RUNTIME_ERROR, "require block defined in ruby code");
+
+  sig = trap_signm(mrb, signo);
+
+  sigfillset(&mask);
+  sigdelset(&mask, sig);
+  if (pthread_sigmask(SIG_BLOCK, &mask, NULL) != 0)
+    mrb_raise(mrb, E_RUNTIME_ERROR, "set mask error");
+
+  sigemptyset(&set);
+  sigaddset(&set, sig);
+
+  if (mrb_nil_p(block)) {
+    /* just wait if no block given */
+    sigwaitinfo(&set, &siginfo);
+
+    mrb_si = mrb_obj_new(mrb, mrb_class_get(mrb, "SigInfo"), 0, NULL);
+    mrb_siginfo_register_data(mrb, mrb_si, &siginfo);
+    return mrb_si;
+  } else {
+    for (;;) {
+      sigwaitinfo(&set, &siginfo);
+
+      mrb_si = mrb_obj_new(mrb, mrb_class_get(mrb, "SigInfo"), 0, NULL);
+      mrb_siginfo_register_data(mrb, mrb_si, &siginfo);
+      argv[0] = mrb_si;
+      mrb_yield_argv(mrb, block, 1, argv);
+    }
+    /* never return */
+    mrb_raise(mrb, E_RUNTIME_ERROR, "[BUG] Wait loop seems broken");
   }
 }
 
@@ -321,16 +407,16 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
 
 static mrb_value mrb_signal_thread_thread_id(mrb_state *mrb, mrb_value self)
 {
-  mrb_thread_context* context = NULL;
+  mrb_thread_context *context = NULL;
   mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
 
   if (mrb_nil_p(value_context)) {
-      mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
+    mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
   }
 
   if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
-      mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
-        mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
+    mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
+               mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
   }
 
   context = DATA_PTR(value_context);
@@ -382,17 +468,26 @@ static mrb_value mrb_signal_thread_queue(mrb_state *mrb, mrb_value self)
 void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 {
   struct RClass *_class_thread = mrb_class_get(mrb, "Thread");
-  struct RClass *signalthread;
+  struct RClass *signalthread, *siginfo;
+
   signalthread = mrb_define_class(mrb, "SignalThread", _class_thread);
 
   mrb_define_class_method(mrb, signalthread, "mask", mrb_signal_thread_mask, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "wait", mrb_signal_thread_wait, MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, signalthread, "waitinfo", mrb_signal_thread_waitinfo, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, signalthread, "kill_by_thread_id", mrb_signal_thread_kill_by_thread_id, MRB_ARGS_REQ(2));
 
   mrb_define_method(mrb, signalthread, "_kill", mrb_signal_thread_kill, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, signalthread, "thread_id", mrb_signal_thread_thread_id, MRB_ARGS_NONE());
 
   mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
+
+  siginfo = mrb_define_class(mrb, "SigInfo", mrb->object_class);
+  mrb_define_method(mrb, siginfo, "uid", mrb_siginfo_get_uid, MRB_ARGS_NONE());
+  mrb_define_method(mrb, siginfo, "pid", mrb_siginfo_get_pid, MRB_ARGS_NONE());
+  mrb_define_method(mrb, siginfo, "syscall", mrb_siginfo_get_syscall, MRB_ARGS_NONE());
+
+  DONE;
 }
 
 void mrb_mruby_signal_thread_gem_final(mrb_state *mrb)
