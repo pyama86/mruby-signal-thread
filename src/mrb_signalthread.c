@@ -24,6 +24,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define DONE mrb_gc_arena_restore(mrb, 0);
+
 typedef struct {
   int argc;
   mrb_value *argv;
@@ -296,10 +298,41 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   }
 }
 
+/* SigInfo functions */
+
+#define MRB_DEFINE_SIGINFO_MEMBER(name, mrb_convert_fun, member)                                                       \
+  static mrb_value mrb_siginfo_get_##name(mrb_state *mrb, mrb_value self)                                              \
+  {                                                                                                                    \
+    siginfo_t *si = DATA_PTR(self);                                                                                    \
+    if (!si) {                                                                                                         \
+      mrb_raise(mrb, E_RUNTIME_ERROR, "[BUG]");                                                                        \
+    }                                                                                                                  \
+    return mrb_convert_fun(si->member);                                                                                \
+  }
+
+MRB_DEFINE_SIGINFO_MEMBER(pid, mrb_fixnum_value, si_pid);
+MRB_DEFINE_SIGINFO_MEMBER(uid, mrb_fixnum_value, si_uid);
+MRB_DEFINE_SIGINFO_MEMBER(syscall, mrb_fixnum_value, si_syscall);
+
+static void mrb_siginfo_register_data(mrb_state *mrb, mrb_value obj, siginfo_t *si)
+{
+  void *data = DATA_PTR(obj);
+  siginfo_t *si2 = mrb_malloc(mrb, sizeof(siginfo_t));
+  if (data || !si2) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "Register data failed");
+  }
+
+  memcpy(si2, si, sizeof(siginfo_t));
+  DATA_PTR(obj) = si2;
+}
+
+/* Return to SignalThread functions */
+
 static mrb_value mrb_signal_thread_waitinfo(mrb_state *mrb, mrb_value self)
 {
   int sig, argc;
-  mrb_value signo, block = mrb_nil_value();
+  mrb_value signo, block = mrb_nil_value(), mrb_si;
+  mrb_value argv[1];
   sigset_t set, mask;
   siginfo_t siginfo;
   memset(&siginfo, 0, sizeof(siginfo_t));
@@ -323,11 +356,18 @@ static mrb_value mrb_signal_thread_waitinfo(mrb_state *mrb, mrb_value self)
   if (mrb_nil_p(block)) {
     /* just wait if no block given */
     sigwaitinfo(&set, &siginfo);
-    return mrb_nil_value();
+
+    mrb_si = mrb_obj_new(mrb, mrb_class_get(mrb, "SigInfo"), 0, NULL);
+    mrb_siginfo_register_data(mrb, mrb_si, &siginfo);
+    return mrb_si;
   } else {
     for (;;) {
       sigwaitinfo(&set, &siginfo);
-      mrb_yield_argv(mrb, block, 0, NULL);
+
+      mrb_si = mrb_obj_new(mrb, mrb_class_get(mrb, "SigInfo"), 0, NULL);
+      mrb_siginfo_register_data(mrb, mrb_si, &siginfo);
+      argv[0] = mrb_si;
+      mrb_yield_argv(mrb, block, 1, argv);
     }
     /* never return */
     mrb_raise(mrb, E_RUNTIME_ERROR, "[BUG] Wait loop seems broken");
@@ -428,7 +468,8 @@ static mrb_value mrb_signal_thread_queue(mrb_state *mrb, mrb_value self)
 void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
 {
   struct RClass *_class_thread = mrb_class_get(mrb, "Thread");
-  struct RClass *signalthread;
+  struct RClass *signalthread, *siginfo;
+
   signalthread = mrb_define_class(mrb, "SignalThread", _class_thread);
 
   mrb_define_class_method(mrb, signalthread, "mask", mrb_signal_thread_mask, MRB_ARGS_REQ(1));
@@ -440,6 +481,13 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
   mrb_define_method(mrb, signalthread, "thread_id", mrb_signal_thread_thread_id, MRB_ARGS_NONE());
 
   mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
+
+  siginfo = mrb_define_class(mrb, "SigInfo", mrb->object_class);
+  mrb_define_method(mrb, siginfo, "uid", mrb_siginfo_get_uid, MRB_ARGS_NONE());
+  mrb_define_method(mrb, siginfo, "pid", mrb_siginfo_get_pid, MRB_ARGS_NONE());
+  mrb_define_method(mrb, siginfo, "syscall", mrb_siginfo_get_syscall, MRB_ARGS_NONE());
+
+  DONE;
 }
 
 void mrb_mruby_signal_thread_gem_final(mrb_state *mrb)

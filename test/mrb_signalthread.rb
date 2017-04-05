@@ -43,6 +43,17 @@ assert('SignalThread#trap_once') do
   assert_false t.alive?
 end
 
+assert('SignalThread#trap, detailed: true') do
+  name = nil
+  t = SignalThread.trap(:USR2, detailed: true) do |info|
+    name = info.class.to_s
+  end
+
+  t.kill :USR2
+  usleep 1000
+  assert_equal "SigInfo", name
+end
+
 assert('SignalThread#thread_id') do
   a = 1
   th = SignalThread.trap(:HUP) do
