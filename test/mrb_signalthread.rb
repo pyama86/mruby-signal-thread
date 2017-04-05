@@ -31,6 +31,18 @@ assert('SignalThread#trap with RTSignal') do
   end
 end
 
+assert('SignalThread#trap_once') do
+  a = 1
+  t = SignalThread.trap_once(:USR1) do
+    a = 4
+  end
+
+  t.kill :USR1
+  usleep 1000
+  assert_equal 4, a
+  assert_false t.alive?
+end
+
 assert('SignalThread#thread_id') do
   a = 1
   th = SignalThread.trap(:HUP) do

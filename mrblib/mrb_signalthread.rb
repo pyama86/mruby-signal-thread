@@ -16,10 +16,12 @@ class SignalThread < Thread
   def self.trap_once(sig, &block)
     strsig = sig.to_s
     mask(strsig)
-    pr = block
-
-    Thread.new(strsig, pr) do |strsig, pr|
+    pr = Proc.new do
       wait(strsig)
+      block.call
+    end
+
+    self.new(pr) do |pr|
       pr.call
     end
   end
