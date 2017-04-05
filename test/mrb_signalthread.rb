@@ -20,10 +20,10 @@ end
 assert('SignalThread#trap with RTSignal') do
   begin
     a = 0
-    SignalThread.trap(:RT1) do
+    t = SignalThread.trap(:RT1) do
       a = 10
     end
-    SignalThread.queue Process.pid, :RT1
+    t.kill :RT1
     usleep 1000
     assert_true a == 10
   rescue ArgumentError => e

@@ -263,7 +263,7 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   mrb_value *argv;
   mrb_int argc;
   sigset_t set, mask;
-  mrb_value block;
+  mrb_value block = mrb_nil_value();
 
   mrb_get_args(mrb, "*&", &argv, &argc, &block);
   if (argc != 1)
@@ -282,9 +282,17 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
   sigemptyset(&set);
   sigaddset(&set, sig);
 
-  for (;;) {
+  if (mrb_nil_p(block)) {
+    /* just wait if no block given */
     sigwait(&set, &sig);
-    mrb_yield_argv(mrb, block, 0, NULL);
+    return mrb_nil_value();
+  } else {
+    for (;;) {
+      sigwait(&set, &sig);
+      mrb_yield_argv(mrb, block, 0, NULL);
+    }
+    /* never return */
+    mrb_raise(mrb, E_RUNTIME_ERROR, "[BUG] Wait loop seems broken");
   }
 }
 
@@ -321,16 +329,16 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
 
 static mrb_value mrb_signal_thread_thread_id(mrb_state *mrb, mrb_value self)
 {
-  mrb_thread_context* context = NULL;
+  mrb_thread_context *context = NULL;
   mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
 
   if (mrb_nil_p(value_context)) {
-      mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
+    mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
   }
 
   if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
-      mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
-        mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
+    mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
+               mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
   }
 
   context = DATA_PTR(value_context);

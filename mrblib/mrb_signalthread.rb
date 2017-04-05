@@ -13,6 +13,17 @@ class SignalThread < Thread
     end
   end
 
+  def self.trap_once(sig, &block)
+    strsig = sig.to_s
+    mask(strsig)
+    pr = block
+
+    Thread.new(strsig, pr) do |strsig, pr|
+      wait(strsig)
+      pr.call
+    end
+  end
+
   def kill(sig)
     _kill(sig.to_s)
   end
