@@ -462,6 +462,32 @@ static mrb_value mrb_signal_thread_is_failed(mrb_state *mrb, mrb_value self)
   return mrb_bool_value((mrb_bool)(!context->alive && mrb_type(context->result) == MRB_TT_EXCEPTION));
 }
 
+static mrb_value mrb_signal_thread_exception(mrb_state *mrb, mrb_value self)
+{
+  mrb_thread_context *context = NULL;
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
+  mrb_value is_failed = mrb_funcall(mrb, self, "failed?", 0);
+  if (!mrb_bool(is_failed)) {
+    return mrb_nil_value();
+  }
+
+  if (mrb_nil_p(value_context)) {
+    mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
+  }
+
+  if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
+    mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
+               mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
+  }
+
+  context = DATA_PTR(value_context);
+  if (context->mrb == NULL) {
+    return mrb_nil_value();
+  }
+
+  return context->result;
+}
+
 #ifdef __APPLE__
 static int sigqueue(pid_t pid, int sig, const union sigval value)
 {
@@ -502,6 +528,7 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
   mrb_define_method(mrb, signalthread, "_kill", mrb_signal_thread_kill, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, signalthread, "thread_id", mrb_signal_thread_thread_id, MRB_ARGS_NONE());
   mrb_define_method(mrb, signalthread, "failed?", mrb_signal_thread_is_failed, MRB_ARGS_NONE());
+  mrb_define_method(mrb, signalthread, "exception", mrb_signal_thread_exception, MRB_ARGS_NONE());
 
   mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
 
