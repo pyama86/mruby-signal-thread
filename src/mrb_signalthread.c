@@ -468,6 +468,30 @@ static mrb_value mrb_signal_thread_exception(mrb_state *mrb, mrb_value self)
   return context->result;
 }
 
+static mrb_value mrb_signal_thread_cancel(mrb_state *mrb, mrb_value self)
+{
+  mrb_thread_context *context = NULL;
+  mrb_value value_context = mrb_signal_thread_get_value_context(mrb, self);
+  context = DATA_PTR(value_context);
+  if (context->mrb == NULL) {
+    return mrb_false_value();
+  }
+
+  if (context->alive) {
+    if (pthread_cancel(context->thread) != 0) {
+      mrb_raise(mrb, E_RUNTIME_ERROR, "pthread_cancel failed");
+    }
+    if (pthread_join(context->thread, NULL) != 0) {
+      mrb_raise(mrb, E_RUNTIME_ERROR, "pthread canceled, but join failed");
+    }
+  }
+  context->result = mrb_symbol_value(mrb_intern_lit(mrb, "canceled"));
+  mrb_close(context->mrb);
+  context->mrb = NULL;
+
+  return context->result;
+}
+
 #ifdef __APPLE__
 static int sigqueue(pid_t pid, int sig, const union sigval value)
 {
@@ -509,6 +533,7 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
   mrb_define_method(mrb, signalthread, "thread_id", mrb_signal_thread_thread_id, MRB_ARGS_NONE());
   mrb_define_method(mrb, signalthread, "failed?", mrb_signal_thread_is_failed, MRB_ARGS_NONE());
   mrb_define_method(mrb, signalthread, "exception", mrb_signal_thread_exception, MRB_ARGS_NONE());
+  mrb_define_method(mrb, signalthread, "cancel", mrb_signal_thread_cancel, MRB_ARGS_NONE());
 
   mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
 
