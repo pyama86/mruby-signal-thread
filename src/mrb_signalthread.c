@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <stdlib.h>
 #include <string.h>
+#include <linux/version.h>
 
 #define DONE mrb_gc_arena_restore(mrb, 0);
 
@@ -312,7 +313,9 @@ static mrb_value mrb_signal_thread_wait(mrb_state *mrb, mrb_value self)
 
 MRB_DEFINE_SIGINFO_MEMBER(pid, mrb_fixnum_value, si_pid);
 MRB_DEFINE_SIGINFO_MEMBER(uid, mrb_fixnum_value, si_uid);
-MRB_DEFINE_SIGINFO_MEMBER(syscall, mrb_fixnum_value, si_syscall);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+  MRB_DEFINE_SIGINFO_MEMBER(syscall, mrb_fixnum_value, si_syscall);
+#endif
 
 static void mrb_siginfo_register_data(mrb_state *mrb, mrb_value obj, siginfo_t *si)
 {
@@ -540,7 +543,9 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
   siginfo = mrb_define_class(mrb, "SigInfo", mrb->object_class);
   mrb_define_method(mrb, siginfo, "uid", mrb_siginfo_get_uid, MRB_ARGS_NONE());
   mrb_define_method(mrb, siginfo, "pid", mrb_siginfo_get_pid, MRB_ARGS_NONE());
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
   mrb_define_method(mrb, siginfo, "syscall", mrb_siginfo_get_syscall, MRB_ARGS_NONE());
+#endif
 
   DONE;
 }
