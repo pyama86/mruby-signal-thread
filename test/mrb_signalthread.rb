@@ -44,7 +44,7 @@ assert('SignalThread#trap_once') do
 end
 
 assert('SignalThread#trap, detailed: true') do
-  name = nil
+  name = 'SigInfo'
   t = SignalThread.trap(:USR2, detailed: true) do |info|
     name = info.class.to_s
   end
