@@ -316,16 +316,13 @@ MRB_DEFINE_SIGINFO_MEMBER(uid, mrb_fixnum_value, si_uid);
   MRB_DEFINE_SIGINFO_MEMBER(syscall, mrb_fixnum_value, si_syscall);
 #endif
 
+static mrb_data_type mrb_siginfo_type = { "siginfo", mrb_free };
+
 static void mrb_siginfo_register_data(mrb_state *mrb, mrb_value obj, siginfo_t *si)
 {
-  void *data = DATA_PTR(obj);
   siginfo_t *si2 = mrb_malloc(mrb, sizeof(siginfo_t));
-  if (data || !si2) {
-    mrb_raise(mrb, E_RUNTIME_ERROR, "Register data failed");
-  }
-
   memcpy(si2, si, sizeof(siginfo_t));
-  DATA_PTR(obj) = si2;
+  mrb_data_init(obj, si2, &mrb_siginfo_type);
 }
 
 /* Return to SignalThread functions */
