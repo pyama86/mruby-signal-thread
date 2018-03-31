@@ -483,6 +483,7 @@ static mrb_value mrb_signal_thread_cancel(mrb_state *mrb, mrb_value self)
     if (pthread_join(context->thread, NULL) != 0) {
       mrb_raise(mrb, E_RUNTIME_ERROR, "pthread canceled, but join failed");
     }
+    context->alive = FALSE;
   }
   context->result = mrb_symbol_value(mrb_intern_lit(mrb, "canceled"));
   mrb_close(context->mrb);
