@@ -447,7 +447,7 @@ static mrb_value mrb_signal_thread_is_failed(mrb_state *mrb, mrb_value self)
     return mrb_nil_value();
   }
 
-  return mrb_bool_value((mrb_bool)(!context->alive && mrb_type(context->result) == MRB_TT_EXCEPTION));
+  return mrb_bool_value((mrb_bool)!!context->mrb->exc);
 }
 
 static mrb_value mrb_signal_thread_exception(mrb_state *mrb, mrb_value self)
