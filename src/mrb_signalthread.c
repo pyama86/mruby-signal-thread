@@ -450,6 +450,8 @@ static mrb_value mrb_signal_thread_is_failed(mrb_state *mrb, mrb_value self)
   return mrb_bool_value((mrb_bool)!!context->mrb->exc);
 }
 
+mrb_value mrb_thread_migrate_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2);
+
 static mrb_value mrb_signal_thread_exception(mrb_state *mrb, mrb_value self)
 {
   mrb_thread_context *context = NULL;
@@ -464,7 +466,7 @@ static mrb_value mrb_signal_thread_exception(mrb_state *mrb, mrb_value self)
     return mrb_nil_value();
   }
 
-  return context->result;
+  return mrb_thread_migrate_value(context->mrb, mrb_obj_value(context->mrb->exc), mrb);
 }
 
 static mrb_value mrb_signal_thread_cancel(mrb_state *mrb, mrb_value self)
