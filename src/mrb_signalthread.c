@@ -373,20 +373,14 @@ static mrb_value mrb_signal_thread_waitinfo(mrb_state *mrb, mrb_value self)
   }
 }
 
-static mrb_value mrb_signal_thread_get_value_context(mrb_state *mrb, mrb_value self)
+static mrb_thread_context* mrb_signal_thread_context(mrb_state *mrb, mrb_value self)
 {
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
-
-  if (mrb_nil_p(value_context)) {
-    mrb_raise(mrb, E_TYPE_ERROR, "context instance is nil");
-  }
-
-  if (strcmp(DATA_TYPE(value_context)->struct_name, "mrb_thread_context") != 0) {
+  if (strcmp(DATA_TYPE(self)->struct_name, "mrb_thread_context") != 0) {
     mrb_raisef(mrb, E_TYPE_ERROR, "wrong argument type %S (expected mrb_thread_context)",
-               mrb_str_new_cstr(mrb, DATA_TYPE(value_context)->struct_name));
+               mrb_str_new_cstr(mrb, DATA_TYPE(self)->struct_name));
   }
 
-  return value_context;
+  return DATA_PTR(self);
 }
 
 static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
@@ -394,7 +388,6 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
   int sig;
   mrb_value *argv;
   mrb_int argc;
-  mrb_value value_context;
   mrb_thread_context *context = NULL;
 
   mrb_get_args(mrb, "*", &argv, &argc);
@@ -403,8 +396,7 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
 
   sig = trap_signm(mrb, argv[0]);
 
-  value_context = mrb_signal_thread_get_value_context(mrb, self);
-  context = DATA_PTR(value_context);
+  context = mrb_signal_thread_context(mrb, self);
   if (context->mrb == NULL)
     return mrb_nil_value();
 
@@ -414,10 +406,8 @@ static mrb_value mrb_signal_thread_kill(mrb_state *mrb, mrb_value self)
 
 static mrb_value mrb_signal_thread_thread_id(mrb_state *mrb, mrb_value self)
 {
-  mrb_thread_context *context = NULL;
-  mrb_value value_context = mrb_signal_thread_get_value_context(mrb, self);
+  mrb_thread_context *context = mrb_signal_thread_context(mrb, self);
 
-  context = DATA_PTR(value_context);
   if (context->mrb == NULL) {
     return mrb_nil_value();
   }
@@ -440,9 +430,7 @@ static mrb_value mrb_signal_thread_kill_by_thread_id(mrb_state *mrb, mrb_value s
 
 static mrb_value mrb_signal_thread_is_failed(mrb_state *mrb, mrb_value self)
 {
-  mrb_thread_context *context = NULL;
-  mrb_value value_context = mrb_signal_thread_get_value_context(mrb, self);
-  context = DATA_PTR(value_context);
+  mrb_thread_context *context = mrb_signal_thread_context(mrb, self);
   if (context->mrb == NULL) {
     return mrb_nil_value();
   }
@@ -454,15 +442,9 @@ mrb_value mrb_thread_migrate_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
 
 static mrb_value mrb_signal_thread_exception(mrb_state *mrb, mrb_value self)
 {
-  mrb_thread_context *context = NULL;
-  mrb_value value_context = mrb_signal_thread_get_value_context(mrb, self);
-  mrb_value is_failed = mrb_funcall(mrb, self, "failed?", 0);
-  if (!mrb_bool(is_failed)) {
-    return mrb_nil_value();
-  }
+  mrb_thread_context *context = mrb_signal_thread_context(mrb, self);
 
-  context = DATA_PTR(value_context);
-  if (context->mrb == NULL) {
+  if (context->mrb == NULL || !context->mrb->exc) {
     return mrb_nil_value();
   }
 
@@ -471,9 +453,7 @@ static mrb_value mrb_signal_thread_exception(mrb_state *mrb, mrb_value self)
 
 static mrb_value mrb_signal_thread_cancel(mrb_state *mrb, mrb_value self)
 {
-  mrb_thread_context *context = NULL;
-  mrb_value value_context = mrb_signal_thread_get_value_context(mrb, self);
-  context = DATA_PTR(value_context);
+  mrb_thread_context *context = mrb_signal_thread_context(mrb, self);
   if (context->mrb == NULL) {
     return mrb_false_value();
   }
