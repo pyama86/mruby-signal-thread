@@ -537,6 +537,7 @@ void mrb_mruby_signal_thread_gem_init(mrb_state *mrb)
   mrb_define_class_method(mrb, signalthread, "queue", mrb_signal_thread_queue, MRB_ARGS_REQ(2));
 
   siginfo = mrb_define_class(mrb, "SigInfo", mrb->object_class);
+  MRB_SET_INSTANCE_TT(siginfo, MRB_TT_DATA);
   mrb_define_method(mrb, siginfo, "uid", mrb_siginfo_get_uid, MRB_ARGS_NONE());
   mrb_define_method(mrb, siginfo, "pid", mrb_siginfo_get_pid, MRB_ARGS_NONE());
 #ifdef si_syscall
