@@ -15,6 +15,6 @@ end
 assert('SignalThread#exception') do
   t = SignalThread.new { raise "Something" }
   usleep 10 * 1000
-  assert_equal "RuntimeError", t.exception.class.to_s
+  assert_kind_of RuntimeError, t.exception
   assert_equal "Something", t.exception.message
 end
