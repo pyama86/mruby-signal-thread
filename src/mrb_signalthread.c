@@ -454,11 +454,17 @@ static mrb_value mrb_signal_thread_exception(mrb_state *mrb, mrb_value self)
 static mrb_value mrb_signal_thread_cancel(mrb_state *mrb, mrb_value self)
 {
   mrb_thread_context *context = mrb_signal_thread_context(mrb, self);
+  sigset_t set;
   if (context->mrb == NULL) {
     return mrb_false_value();
   }
 
   if (context->alive) {
+    /* reset sigmask */
+    sigemptyset(&set);
+    if (pthread_sigmask(SIG_SETMASK, &set, NULL) != 0)
+      mrb_raise(mrb, E_RUNTIME_ERROR, "set mask error");
+
     if (pthread_cancel(context->thread) != 0) {
       mrb_raise(mrb, E_RUNTIME_ERROR, "pthread_cancel failed");
     }
